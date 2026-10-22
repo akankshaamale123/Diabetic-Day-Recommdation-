@@ -1,0 +1,100 @@
+{
+  "samosa": {
+    "per_100g": {
+      "sugar_g": 2.0,
+      "protein_g": 5.0,
+      "fiber_g": 2.0,
+      "calcium_mg": 60,
+      "calories_kcal": 240,
+      "fat_g": 15.0,
+      "carbs_g": 25.0,
+      "cholesterol_mg": 50
+    },
+    "confidence": 0.85,
+    "notes": "Typical Indian fried samosa with potato filling; values approximate."
+  },
+  "dosai": {
+    "per_100g": {
+      "calories_kcal": 120,
+      "calcium_mg": 20,
+      "sugar_g": 1,
+      "carbs_g": 24,
+      "protein_g": 3,
+      "fat_g": 1,
+      "cholesterol_mg": 0,
+      "fiber_g": 2
+    },
+    "confidence": 0.85,
+    "notes": "Typical Indian dosai; values based on rice flour and water base."
+  },
+  "chutney, yellow": {
+    "per_100g": {
+      "calories_kcal": 120,
+      "calcium_mg": 25,
+      "sugar_g": 18.0,
+      "carbs_g": 22.0,
+      "protein_g": 1.5,
+      "fat_g": 2.0,
+      "cholesterol_mg": 0,
+      "fiber_g": 1.5
+    },
+    "confidence": 0.85,
+    "notes": "Typical Indian yellow chutney (tamarind, potato, spices). Values approximate."
+  },
+  "chutney, red": {
+    "per_100g": {
+      "calories_kcal": 120,
+      "calcium_mg": 25,
+      "sugar_g": 18.0,
+      "carbs_g": 22.0,
+      "protein_g": 1.5,
+      "fat_g": 1.0,
+      "cholesterol_mg": 0,
+      "fiber_g": 1.5
+    },
+    "confidence": 0.85,
+    "notes": "Typical Indian red chutney (tamarind, chili, garlic); values approximate."
+  },
+  "red chutney": {
+    "per_100g": {
+      "cholesterol_mg": 0,
+      "protein_g": 1,
+      "carbs_g": 22,
+      "calories_kcal": 120,
+      "fat_g": 3,
+      "fiber_g": 1,
+      "calcium_mg": 20,
+      "sugar_g": 18
+    },
+    "confidence": 0.8,
+    "notes": "Typical Indian red chutney with tomatoes, onions, spices; values approximate."
+  },
+  "papadum": {
+    "per_100g": {
+      "cholesterol_mg": 0,
+      "protein_g": 6,
+      "carbs_g": 45,
+      "calories_kcal": 300,
+      "fat_g": 18,
+      "fiber_g": 3,
+      "calcium_mg": 100,
+      "sugar_g": 1
+    },
+    "confidence": 0.9,
+    "notes": "Typical Indian preparation; values vary by recipe and brand."
+  },
+  "raita": {
+    "per_100g": {
+      "cholesterol_mg": 15,
+      "protein_g": 2.5,
+      "carbs_g": 3.5,
+      "calories_kcal": 100,
+      "fat_g": 7.5,
+      "fiber_g": 0.5,
+      "calcium_mg": 30,
+      "sugar_g": 1.5
+    },
+    "confidence": 0.8,
+    "notes": "Typical Indian yogurt-based raita with cucumber and spices; values vary by recipe."
+  }
+}
