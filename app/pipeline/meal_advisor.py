@@ -12,7 +12,11 @@ user's clinician-approved targets (see `targets=` argument).
 """
 from __future__ import annotations
 
+import logging
+
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 # per-meal limits (placeholders — set from clinician-approved targets)
 DEFAULT_TARGETS = {
@@ -33,59 +37,44 @@ TIPS = [
 # ----------------------------------------------------------------
 # 1. Is this meal OK for this user?
 # ----------------------------------------------------------------
-def assess_meal(totals: dict, meal_type: str = "breakfast",
-                targets: dict | None = None,
-                detected_names: list[str] | None = None,
-                risky_foods: list[str] | None = None) -> dict:
-    """
-    totals         : nutrition['total_nutrition'] from calculate_nutrition()
-    risky_foods    : foods that spiked THIS user's glucose before
-                     (summarize_patterns(...)['high_response_foods'])
-    """
-    t = (targets or DEFAULT_TARGETS)[meal_type]
-    carbs = totals.get("carbs_g", 0) or 0
-    sugar = totals.get("sugar_g", 0) or 0
-    fiber = totals.get("fiber_g", 0) or 0
-    protein = totals.get("protein_g", 0) or 0
-    kcal = totals.get("calories_kcal", 0) or 0
+# def assess_meal(totals: dict, meal_type: str = "breakfast",
+#                 targets: dict | None = None,
+#                 detected_names: list[str] | None = None,
+#                 risky_foods: list[str] | None = None) -> dict:
+#     """ ... (original implementation, kept for reference) ... """
 
-    issues, points = [], 0
-    if carbs > t["carbs_g"]:
-        heavy = carbs > 1.3 * t["carbs_g"]
-        points += 2 if heavy else 1
-        issues.append(f"Carbs {carbs:.0f} g is above the {t['carbs_g']} g limit for {meal_type}.")
-    if sugar > t["sugar_g"]:
-        points += 1
-        issues.append(f"Sugar {sugar:.0f} g is above {t['sugar_g']} g.")
-    if fiber < t["fiber_min_g"]:
-        points += 1
-        issues.append(f"Fibre {fiber:.0f} g is low (aim for {t['fiber_min_g']} g+).")
-    if protein < t["protein_min_g"]:
-        points += 1
-        issues.append(f"Protein {protein:.0f} g is low (aim for {t['protein_min_g']} g+).")
-    if kcal > t["calories_max"]:
-        issues.append(f"Calories {kcal:.0f} kcal are above {t['calories_max']} kcal.")
+def assess_meal(totals, meal_type="breakfast", targets=None,
+                detected_names=None, risky_foods=None):
+    logger.info("assess_meal(): meal_type=%s, risky_foods=%d, "
+                "detected_names=%d",
+                meal_type,
+                len(risky_foods or []),
+                len(detected_names or []))
+    logger.debug("assess_meal(): totals=%s", totals)
 
-    # personal history: did these foods spike this user before?
-    personal = []
-    for name in detected_names or []:
-        for risky in risky_foods or []:
-            if risky.lower() in name.lower() or name.lower() in risky.lower():
-                personal.append(name)
-    if personal:
-        points += 2
-        issues.append("Your own glucose history shows spikes after: "
-                      + ", ".join(sorted(set(personal))) + ".")
+    try:
+        from . import rules
+        rs = rules.evaluate(totals, meal_type, risky_foods, detected_names)
+        v, label = rules.verdict(rs)
+    except Exception:
+        logger.exception("assess_meal(): rules evaluation failed "
+                         "(meal_type=%s)", meal_type)
+        raise
 
-    verdict = "good" if points == 0 else "okay" if points <= 2 else "not_suitable"
-    label = {"good": "Good choice for you",
-             "okay": "Acceptable, but could be better",
-             "not_suitable": "Not ideal for diabetes"}[verdict]
-    return {"verdict": verdict, "label": label, "score_points": points,
-            "issues": issues, "meal_type": meal_type,
-            "carbs_g": round(carbs, 1), "sugar_g": round(sugar, 1),
-            "fiber_g": round(fiber, 1), "protein_g": round(protein, 1),
-            "calories_kcal": round(kcal, 1)}
+    n_rules = len(rs or [])
+    logger.info("assess_meal(): verdict=%s (%s) with %d rule(s)",
+                v, label, n_rules)
+    if n_rules:
+        logger.debug("assess_meal(): fired rules=%s",
+                     [getattr(r, "title", type(r).__name__) for r in rs])
+
+    return {
+        "verdict": v, "label": label, "rules": [r.__dict__ for r in rs],
+        "meal_type": meal_type,
+        **{k: round(float(totals.get(k) or 0), 1)
+           for k in ("carbs_g", "sugar_g", "fiber_g", "protein_g",
+                     "calories_kcal")},
+    }
 
 
 # ----------------------------------------------------------------
@@ -93,26 +82,55 @@ def assess_meal(totals: dict, meal_type: str = "breakfast",
 # ----------------------------------------------------------------
 def suggest_lunch(assessment: dict, targets: dict | None = None,
                   risky_foods: list[str] | None = None, n: int = 6) -> dict:
+    logger.info("suggest_lunch(): verdict=%s, n=%d, risky_foods=%d",
+                assessment.get("verdict"), n, len(risky_foods or []))
+
     # imported here so this module loads without the HF dataset
     from pipeline.nutrition_calculator import _df
 
     tg = targets or DEFAULT_TARGETS
     over = max(0.0, assessment["carbs_g"] - tg["breakfast"]["carbs_g"])
     lunch_carbs = max(20.0, tg["lunch"]["carbs_g"] - over)   # cut lunch if breakfast was heavy
+    logger.debug("suggest_lunch(): breakfast_carbs=%.1f over=%.1f "
+                 "lunch_budget=%.1f", assessment["carbs_g"], over, lunch_carbs)
 
     d = _df.copy()
+    logger.debug("suggest_lunch(): nutrition DB rows (raw)=%d", len(d))
+
     for c in ["Carbs", "Fibre(g)", "Protein(g)", "Freesugar(g)", "Energy kcal"]:
         d[c] = pd.to_numeric(d[c], errors="coerce")
     d = d.dropna(subset=["Carbs", "Fibre(g)", "Protein(g)", "Freesugar(g)"])
     d = d.drop_duplicates(subset="Food Items")
+    logger.debug("suggest_lunch(): rows after numeric coercion + dropna + "
+                 "dedupe=%d", len(d))
 
     d = d[(d["Freesugar(g)"] <= 5) & ((d["Fibre(g)"] >= 2) | (d["Protein(g)"] >= 8))]
+    logger.debug("suggest_lunch(): rows after low-sugar/high-fibre-or-protein "
+                 "filter=%d", len(d))
+
     for r in risky_foods or []:
+        before = len(d)
         d = d[~d["Food Items"].str.lower().str.contains(r.lower(), regex=False)]
+        removed = before - len(d)
+        if removed:
+            logger.debug("suggest_lunch(): removed %d row(s) matching risky "
+                         "food %r", removed, r)
+
+    if d.empty:
+        logger.warning("suggest_lunch(): no candidate foods left after "
+                       "filtering (risky_foods=%d) — returning empty plan",
+                       len(risky_foods or []))
+        return {
+            "intro": "No suitable lunch candidates found for your profile.",
+            "lunch_carb_budget_g": round(lunch_carbs, 0),
+            "suggestions": [],
+            "tips": TIPS,
+        }
 
     d["score"] = (d["Protein(g)"] * 1.0 + d["Fibre(g)"] * 2.0
                   - d["Freesugar(g)"] * 2.0 - d["Carbs"] * 0.3)
     top = d.sort_values("score", ascending=False).head(n)
+    logger.debug("suggest_lunch(): selected top %d candidate(s)", len(top))
 
     picks = []
     per_item_carbs = lunch_carbs / 2          # leave room for a second item
@@ -133,6 +151,9 @@ def suggest_lunch(assessment: dict, targets: dict | None = None,
     else:
         intro = ("Breakfast was heavy on carbs/sugar, so keep lunch lighter "
                  f"(about {lunch_carbs:.0f} g carbs):")
+
+    logger.info("suggest_lunch(): returning %d suggestion(s); budget=%.0f g carbs",
+                len(picks), lunch_carbs)
     return {"intro": intro, "lunch_carb_budget_g": round(lunch_carbs, 0),
             "suggestions": picks, "tips": TIPS}
 
@@ -143,13 +164,22 @@ def suggest_lunch(assessment: dict, targets: dict | None = None,
 def breakfast_advice(analysis: dict, risky_foods: list[str] | None = None,
                      targets: dict | None = None) -> dict:
     """`analysis` = the dict returned by analyze_meal(image_path)."""
-    vision = analysis.get("vision", {})
-    nutrition = analysis.get("nutrition", {})
+    logger.info("breakfast_advice(): risky_foods=%d", len(risky_foods or []))
+
+    vision = analysis.get("vision", {}) or {}
+    nutrition = analysis.get("nutrition", {}) or {}
     names = [f.get("normalized_food_name") or f.get("food_name")
              for f in vision.get("food_items", [])]
+    names = [n for n in names if n]
+    logger.debug("breakfast_advice(): detected foods=%s", names)
+
     assessment = assess_meal(nutrition.get("total_nutrition", {}), "breakfast",
-                             targets, [n for n in names if n], risky_foods)
+                             targets, names, risky_foods)
     lunch = suggest_lunch(assessment, targets, risky_foods)
+
+    logger.info("breakfast_advice(): done — breakfast verdict=%s, "
+                "%d lunch suggestion(s)",
+                assessment.get("verdict"), len(lunch.get("suggestions", [])))
     return {"assessment": assessment, "lunch": lunch}
 
 
@@ -160,21 +190,47 @@ def breakfast_check(image_path: str, login_date=None, end=None,
     from pipeline.glucose_analysis import summarize_patterns
     from pipeline.glucose_charts import default_login_date
 
-    login_date = login_date if login_date is not None else default_login_date()
-    end = end if end is not None else pd.Timestamp.now()
-    risky = summarize_patterns(login_date, end).get("high_response_foods", [])
-    result = analyze_meal(image_path)
-    return {**result, **breakfast_advice(result, risky, targets)}
+    logger.info("breakfast_check(): image=%s", image_path)
+
+    try:
+        login_date = login_date if login_date is not None else default_login_date()
+        end = end if end is not None else pd.Timestamp.now()
+        logger.debug("breakfast_check(): window %s → %s",
+                     pd.Timestamp(login_date).date(), pd.Timestamp(end).date())
+
+        risky = summarize_patterns(login_date, end).get("high_response_foods", [])
+        logger.info("breakfast_check(): %d risky food(s) from history: %s",
+                    len(risky), risky)
+
+        result = analyze_meal(image_path)
+    except Exception:
+        logger.exception("breakfast_check(): failed while loading history or "
+                         "analyzing meal (image=%s)", image_path)
+        raise
+
+    try:
+        merged = {**result, **breakfast_advice(result, risky, targets)}
+    except Exception:
+        logger.exception("breakfast_check(): breakfast_advice() failed for "
+                         "image=%s", image_path)
+        raise
+
+    verdict = (merged.get("assessment") or {}).get("verdict")
+    logger.info("breakfast_check(): done — verdict=%s", verdict)
+    return merged
 
 
 def to_markdown(advice: dict) -> str:
+    logger.debug("to_markdown(): building markdown for advice")
     a, l = advice["assessment"], advice["lunch"]
     icon = {"good": "✅", "okay": "🟡", "not_suitable": "🔴"}[a["verdict"]]
     md = f"### {icon} Breakfast: {a['label']}\n"
     md += (f"Carbs {a['carbs_g']} g · Sugar {a['sugar_g']} g · Fibre {a['fiber_g']} g · "
            f"Protein {a['protein_g']} g · {a['calories_kcal']} kcal\n\n")
-    for i in a["issues"]:
-        md += f"- {i}\n"
+    for rule in advice["assessment"].get("rules", []):
+        md += f"- **{rule['title']}** — {rule['detail']}\n"
+        for ev in rule.get("evidence", []):
+            md += f"  - _Evidence: {ev}_\n"
     md += f"\n### 🍛 For lunch\n{l['intro']}\n\n"
     md += "| Food | Portion | Carbs | Protein | Fibre |\n|---|---|---|---|---|\n"
     for s in l["suggestions"]:

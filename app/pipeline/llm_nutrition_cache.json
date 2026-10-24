@@ -96,5 +96,47 @@
     },
     "confidence": 0.8,
     "notes": "Typical Indian yogurt-based raita with cucumber and spices; values vary by recipe."
+  },
+  "dosai, rolled": {
+    "per_100g": {
+      "calcium_mg": 20,
+      "carbs_g": 24,
+      "fat_g": 1,
+      "sugar_g": 1,
+      "fiber_g": 1,
+      "protein_g": 3,
+      "cholesterol_mg": 0,
+      "calories_kcal": 120
+    },
+    "confidence": 0.8,
+    "notes": "Estimate based on typical Indian dosa with rice and urad dal."
+  },
+  "kadhi": {
+    "per_100g": {
+      "carbs_g": 10.0,
+      "fat_g": 6.0,
+      "sugar_g": 2.0,
+      "protein_g": 4.5,
+      "fiber_g": 0.5,
+      "calories_kcal": 120,
+      "cholesterol_mg": 25,
+      "calcium_mg": 120
+    },
+    "confidence": 0.85,
+    "notes": "Typical Indian preparation; values vary by recipe and ingredients."
+  },
+  "chili con carne": {
+    "per_100g": {
+      "cholesterol_mg": 30,
+      "calcium_mg": 30,
+      "fiber_g": 1,
+      "protein_g": 7,
+      "sugar_g": 4,
+      "fat_g": 6,
+      "calories_kcal": 140,
+      "carbs_g": 12
+    },
+    "confidence": 0.8,
+    "notes": "Typical Indian-style chili con carne; values approximate based on common ingredients."
   }
 }
