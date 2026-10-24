@@ -98,6 +98,7 @@ def main() -> None:
     table.to_csv(OUT_CSV, index=False)
     print(f"Training meals: {len(table)} from {table['subject'].nunique()} subjects")
 
+
     import joblib
     from sklearn.ensemble import RandomForestRegressor
     from sklearn.model_selection import GroupKFold

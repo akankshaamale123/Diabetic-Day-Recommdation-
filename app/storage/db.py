@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "health.db"
 
-
+logger.info(f"DB_PATH: {DB_PATH}")
 @contextmanager
 def _conn():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)

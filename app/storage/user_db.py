@@ -217,7 +217,7 @@ def load_meals(user_id: int, start=None, end=None) -> pd.DataFrame:
         raise
 
     if not df.empty:
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", format="mixed")
 
     if df.empty:
         window = ""
@@ -291,7 +291,7 @@ def load_glucose(user_id: int, start=None, end=None) -> pd.DataFrame:
         raise
 
     if not df.empty:
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", format="mixed")
 
     if df.empty:
         window = ""
