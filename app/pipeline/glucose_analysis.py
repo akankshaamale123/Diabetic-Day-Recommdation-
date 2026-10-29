@@ -8,7 +8,9 @@ time window drawn from the user's history.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -16,14 +18,20 @@ from plotly.subplots import make_subplots
 
 from storage import db
 
+logger = logging.getLogger(__name__)
+
 
 # ----------------------------------------------------------------
 # Load + align
 # ----------------------------------------------------------------
 def load_window(start, end) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load glucose + meals for a real past window (both may be empty)."""
+    logger.debug("load_window(): start=%s end=%s", start, end)
     g = db.load_glucose(start, end)
     m = db.load_meals(start, end)
+    logger.info("load_window(): glucose_rows=%d meal_rows=%d for %s → %s",
+                len(g), len(m),
+                pd.Timestamp(start).date(), pd.Timestamp(end).date())
     return g, m
 
 
@@ -42,9 +50,13 @@ def plot_glucose_day(
     """
     day = pd.Timestamp(day).normalize()
     day_end = day + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+    logger.info("plot_glucose_day(): day=%s spike=%s low=%s",
+                day.date(), spike_threshold, low_threshold)
 
     g = db.load_glucose(day, day_end)
     m = db.load_meals(day, day_end)
+    logger.debug("plot_glucose_day(): glucose_rows=%d meal_rows=%d",
+                 len(g), len(m))
 
     fig = make_subplots(
         rows=2, cols=1, shared_xaxes=True,
@@ -65,6 +77,7 @@ def plot_glucose_day(
             row=1, col=1,
         )
     else:
+        logger.warning("plot_glucose_day(): no glucose readings for %s", day.date())
         fig.add_annotation(
             text="No glucose readings for this day",
             xref="x domain", yref="y domain",
@@ -114,6 +127,7 @@ def plot_glucose_day(
         hovermode="x unified",
         showlegend=False,
     )
+    logger.debug("plot_glucose_day(): figure built for %s", day.date())
     return fig
 
 
@@ -126,6 +140,9 @@ def plot_glucose_history(start, end,
     Continuous glucose line across the full past window, with
     day separators and a daily mean overlay.
     """
+    logger.info("plot_glucose_history(): window %s → %s (spike=%s)",
+                pd.Timestamp(start).date(), pd.Timestamp(end).date(),
+                spike_threshold)
     g, m = load_window(start, end)
 
     fig = go.Figure()
@@ -158,6 +175,13 @@ def plot_glucose_history(start, end,
             fig.add_vline(x=meal["timestamp"],
                           line_dash="dot", line_color="grey",
                           line_width=0.7)
+        logger.debug("plot_glucose_history(): %d glucose points, "
+                     "%d daily means, %d meal markers",
+                     len(g), len(daily), len(m))
+    else:
+        logger.warning("plot_glucose_history(): empty glucose data for window "
+                       "%s → %s",
+                       pd.Timestamp(start).date(), pd.Timestamp(end).date())
 
     fig.add_hline(y=spike_threshold, line_dash="dash", line_color="red")
     fig.update_layout(
@@ -178,6 +202,9 @@ def _meal_metrics(g: pd.DataFrame, meal: pd.Series,
     t1 = t0 + pd.Timedelta(minutes=window_minutes)
     w = g[(g["timestamp"] >= t0) & (g["timestamp"] <= t1)]
     if len(w) < 3:
+        logger.debug("_meal_metrics(): insufficient readings (%d) for meal "
+                     "%s at %s — skipped",
+                     len(w), meal.get("food_name"), t0)
         return None
 
     baseline = float(w.iloc[0]["glucose_mgdl"])
@@ -191,7 +218,7 @@ def _meal_metrics(g: pd.DataFrame, meal: pd.Series,
     t = (w["timestamp"] - t0).dt.total_seconds().values / 60.0
     iauc = float(np.trapezoid(y, t)) if len(y) > 1 else 0.0
 
-    return {
+    result = {
         "timestamp": meal["timestamp"],
         "food_name": meal["food_name"],
         "carbs_g": meal.get("carbs_g"),
@@ -203,22 +230,41 @@ def _meal_metrics(g: pd.DataFrame, meal: pd.Series,
         "iauc_above_baseline": round(iauc, 1),
         "spike_occurred": peak >= spike_threshold,
     }
+    logger.debug(
+        "_meal_metrics(): %s @ %s → base=%.1f peak=%.1f Δ=%.1f spike=%s",
+        result["food_name"], t0, baseline, peak, delta,
+        result["spike_occurred"],
+    )
+    return result
 
 
 def analyze_meal_responses(start, end,
                            window_minutes: int = 120,
                            spike_threshold: float = 180.0) -> pd.DataFrame:
     """Real historical meal‑by‑meal glucose responses."""
+    logger.info("analyze_meal_responses(): window %s → %s (window=%dmin, spike=%s)",
+                pd.Timestamp(start).date(), pd.Timestamp(end).date(),
+                window_minutes, spike_threshold)
     g, m = load_window(start, end)
     if g.empty or m.empty:
+        logger.warning("analyze_meal_responses(): empty input "
+                       "(glucose=%d, meals=%d) — returning empty frame",
+                       len(g), len(m))
         return pd.DataFrame()
 
     rows = []
+    skipped = 0
     for _, meal in m.iterrows():
         r = _meal_metrics(g, meal, window_minutes, spike_threshold)
         if r is not None:
             rows.append(r)
-    return pd.DataFrame(rows)
+        else:
+            skipped += 1
+
+    df = pd.DataFrame(rows)
+    logger.info("analyze_meal_responses(): %d meal(s) analysed, %d skipped",
+                len(df), skipped)
+    return df
 
 
 # ----------------------------------------------------------------
@@ -228,9 +274,13 @@ def summarize_patterns(start, end,
                        high_delta: float = 50.0,
                        spike_threshold: float = 180.0) -> dict:
     """Which foods repeatedly pushed glucose up in this window."""
+    logger.info("summarize_patterns(): window %s → %s (high_delta=%s)",
+                pd.Timestamp(start).date(), pd.Timestamp(end).date(),
+                high_delta)
     resp = analyze_meal_responses(start, end,
                                   spike_threshold=spike_threshold)
     if resp.empty:
+        logger.warning("summarize_patterns(): no meal-response data in window")
         return {"message": "No meal‑response data in this window."}
 
     per_food = (
@@ -248,6 +298,11 @@ def summarize_patterns(start, end,
     )
     flagged = per_food[per_food["avg_delta"] >= high_delta]
 
+    logger.info(
+        "summarize_patterns(): meals=%d, flagged_foods=%d (%s)",
+        len(resp), len(flagged), flagged["food_name"].tolist(),
+    )
+
     return {
         "window": f"{pd.Timestamp(start).date()} → {pd.Timestamp(end).date()}",
         "meals_analysed": int(len(resp)),
@@ -262,11 +317,14 @@ def summarize_patterns(start, end,
 # Daily nutrition rollup (nutrition per day from real meals)
 # ----------------------------------------------------------------
 def daily_nutrition(start, end) -> pd.DataFrame:
+    logger.info("daily_nutrition(): window %s → %s",
+                pd.Timestamp(start).date(), pd.Timestamp(end).date())
     _, m = load_window(start, end)
     if m.empty:
+        logger.warning("daily_nutrition(): no meals in window — empty frame")
         return pd.DataFrame()
     m = m.assign(day=m["timestamp"].dt.normalize())
-    return (
+    df = (
         m.groupby("day", as_index=False)
          .agg(calories_kcal=("calories_kcal", "sum"),
               carbs_g=("carbs_g", "sum"),
@@ -276,6 +334,8 @@ def daily_nutrition(start, end) -> pd.DataFrame:
               fiber_g=("fiber_g", "sum"))
          .round(1)
     )
+    logger.info("daily_nutrition(): %d day(s) rolled up", len(df))
+    return df
 
 
 # ----------------------------------------------------------------
@@ -288,14 +348,25 @@ def save_day_charts(start, end, out_dir: str | Path = "reports") -> list[Path]:
     """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    logger.info("save_day_charts(): window %s → %s, out_dir=%s",
+                pd.Timestamp(start).date(), pd.Timestamp(end).date(), out)
 
     days = pd.date_range(pd.Timestamp(start).normalize(),
                          pd.Timestamp(end).normalize(), freq="D")
+    logger.debug("save_day_charts(): %d day(s) to render", len(days))
+
     written = []
     for d in days:
-        fig = plot_glucose_day(d)
-        path = out / f"glucose_{d.date()}.html"
-        print(Path,"*******************************😂😂😁")
-        fig.write_html(path)
-        written.append(path)
+        try:
+            fig = plot_glucose_day(d)
+            path = out / f"glucose_{d.date()}.html"
+            fig.write_html(path)
+            written.append(path)
+            logger.debug("save_day_charts(): wrote %s", path)
+        except Exception:
+            logger.exception("save_day_charts(): failed to render/write chart "
+                             "for day=%s", d.date())
+
+    logger.info("save_day_charts(): wrote %d/%d chart(s) to %s",
+                len(written), len(days), out)
     return written

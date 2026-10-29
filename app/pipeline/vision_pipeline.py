@@ -21,6 +21,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageFilter, ImageStat
 
+from pipeline.detection_audit import assess_detection_quality, audit_missing_items
+
 from pipeline.image_inference import detect_foods, _extract_json
 from client import generate_image
 
@@ -45,11 +47,11 @@ def check_quality(path: str) -> dict:
     w, h = img.size
     issues, warnings = [], []
 
-    if w < 600 or h < 600:
-        issues.append(f"image is small ({w}×{h}) — use ≥ 800px")
+    if w < 400 or h < 400:
+        issues.append(f"image is too small ({w}×{h}) — please upload a larger photo")
 
     sharpness = _laplacian_variance(img)
-    if sharpness < 50:
+    if sharpness < 30:
         issues.append("image looks blurry")
 
     mean = float(ImageStat.Stat(img.convert("L")).mean[0])
@@ -123,7 +125,7 @@ def _dedupe(foods: list[dict], name_threshold: float = 0.85) -> list[dict]:
     return merged
 
 
-def detect_multi(paths: list[str]) -> dict:
+def detect_multi(paths: list[str], ask_for_more: bool = True) -> dict:
     logger.info("detect_multi(): processing %d image(s)", len(paths or []))
 
     items: list[dict] = []
@@ -153,18 +155,42 @@ def detect_multi(paths: list[str]) -> dict:
                              Path(p).name)
 
     deduped = _dedupe(items)
+
+    # -- optional second-pass audit for the first image (only if it looks weak) --
+    audit_added = 0
+    if ask_for_more and paths:
+        probe = {"food_items": deduped}
+        q = assess_detection_quality(probe)
+        if q["should_ask_another_photo"]:
+            try:
+                extra = audit_missing_items(paths[0], probe)
+            except Exception:
+                extra = []
+            if extra:
+                before = len(deduped)
+                deduped = _dedupe(deduped + extra)
+                audit_added = len(deduped) - before
+                logger.info("detect_multi(): audit pass added %d new item(s)",
+                            audit_added)
+
+    # -- final quality flag for the UI --
+    quality = assess_detection_quality({"food_items": deduped})
+
     logger.info(
-        "detect_multi(): done — %d food(s) after dedupe; "
+        "detect_multi(): done — %d food(s) after dedupe; audit +%d; "
         "%d image(s) skipped for quality, %d failed inference",
-        len(deduped), skipped_quality, failed_inference,
+        len(deduped), audit_added, skipped_quality, failed_inference,
     )
 
     return {
-        "food_items": deduped,
-        "requires_user_confirmation": True,
-        "warnings": warnings,
+        "food_items":               deduped,
+        "requires_user_confirmation": quality["should_ask_another_photo"],
+        "warnings":                 warnings,
+        "quality":                  quality,   # <-- new: for the UI to display
     }
+    
 
+    
 
 # ---------------------------------------------------------------- OCR modes
 _MENU_PROMPT = """Extract every dish from this menu photo. Return JSON:

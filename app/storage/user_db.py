@@ -19,8 +19,10 @@ from . import db
 
 logger = logging.getLogger(__name__)
 
-NUTRIENT_COLS = ["calories_kcal", "carbs_g", "sugar_g", "fiber_g",
-                 "protein_g", "fat_g"]
+NUTRIENT_COLS = [
+    "calories_kcal", "carbs_g", "sugar_g", "fiber_g", "protein_g", "fat_g", 
+    "cholesterol_mg", "calcium_mg"
+] 
 
 
 def _conn() -> sqlite3.Connection:
@@ -65,6 +67,7 @@ def init_user_tables() -> None:
                 foods_json    TEXT,
                 calories_kcal REAL, carbs_g REAL, sugar_g REAL,
                 fiber_g REAL, protein_g REAL, fat_g REAL,
+                cholesterol_mg REAL, calcium_mg REAL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
             CREATE INDEX IF NOT EXISTS idx_user_meals ON user_meals(user_id, timestamp);
@@ -149,14 +152,35 @@ def update_profile(user_id: int, diabetes_type: str, baseline_mgdl: float) -> No
 
 
 def login_date(user: dict) -> pd.Timestamp:
+    created_at = user.get("created_at")
+
+    if not created_at:
+        logger.warning(
+            "login_date(): created_at is missing for user_id=%s",
+            user.get("id")
+        )
+        return pd.Timestamp.today().normalize()
+
     try:
-        dt = pd.Timestamp(user["created_at"]).normalize()
-    except Exception:
-        logger.exception("login_date(): invalid created_at=%r for user_id=%s",
-                         user.get("created_at"), user.get("id"))
-        raise
-    logger.debug("login_date(): user_id=%s → %s",
-                 user.get("id"), dt.date())
+        dt = pd.Timestamp(created_at).normalize()
+
+        if pd.isna(dt):
+            raise ValueError("created_at contains an invalid date")
+
+    except (ValueError, TypeError, OverflowError):
+        logger.exception(
+            "login_date(): invalid created_at=%r for user_id=%s",
+            created_at,
+            user.get("id")
+        )
+        return pd.Timestamp.today().normalize()
+
+    logger.debug(
+        "login_date(): user_id=%s → %s",
+        user.get("id"),
+        dt.date()
+    )
+
     return dt
 
 
@@ -180,8 +204,9 @@ def add_meal(user_id: int, timestamp, meal_type: str,
         with _session() as c:
             cur = c.execute(
                 "INSERT INTO user_meals(user_id,timestamp,meal_type,foods_json,"
-                "calories_kcal,carbs_g,sugar_g,fiber_g,protein_g,fat_g) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                "calories_kcal,carbs_g,sugar_g,fiber_g,protein_g,fat_g,"
+                "cholesterol_mg,calcium_mg) " 
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (user_id, ts, meal_type,
                  json.dumps(foods or [], ensure_ascii=False), *vals))
             meal_id = cur.lastrowid
@@ -198,36 +223,34 @@ def add_meal(user_id: int, timestamp, meal_type: str,
 def load_meals(user_id: int, start=None, end=None) -> pd.DataFrame:
     bounded_start = start is not None
     bounded_end = end is not None
-    logger.debug("load_meals(): user_id=%s, start=%s, end=%s",
-                 user_id, start, end)
+    logger.debug("load_meals(): user_id=%s, start=%s, end=%s", user_id, start, end)
 
     q, p = "SELECT * FROM user_meals WHERE user_id=?", [user_id]
+    
+    # FIX: Use datetime() to ignore the difference between 'T' and 'space'
     if bounded_start:
-        q += " AND timestamp >= ?"; p.append(pd.Timestamp(start).isoformat())
+        q += " AND datetime(timestamp) >= datetime(?)"
+        p.append(pd.Timestamp(start).isoformat())
     if bounded_end:
-        q += " AND timestamp <= ?"; p.append(pd.Timestamp(end).isoformat())
+        q += " AND datetime(timestamp) <= datetime(?)"
+        p.append(pd.Timestamp(end).isoformat())
+        
     q += " ORDER BY timestamp"
 
     try:
         with _session() as c:
             df = pd.read_sql_query(q, c, params=p)
     except Exception:
-        logger.exception("load_meals(): query failed for user_id=%s "
-                         "(start=%s, end=%s)", user_id, start, end)
+        logger.exception("load_meals(): query failed for user_id=%s", user_id)
         raise
 
     if not df.empty:
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", format="mixed")
 
     if df.empty:
-        window = ""
-        if bounded_start or bounded_end:
-            window = f" between {start} and {end}"
-        logger.warning("load_meals(): no meals for user_id=%s%s",
-                       user_id, window)
+        logger.warning("load_meals(): no meals for user_id=%s between %s and %s", user_id, start, end)
     else:
-        logger.debug("load_meals(): user_id=%s → %d meal row(s)",
-                     user_id, len(df))
+        logger.debug("load_meals(): user_id=%s → %d meal row(s)", user_id, len(df))
     return df
 
 
@@ -271,35 +294,32 @@ def add_glucose(user_id: int, timestamp, value: float) -> None:
 
 
 def load_glucose(user_id: int, start=None, end=None) -> pd.DataFrame:
-    logger.debug("load_glucose(): user_id=%s, start=%s, end=%s",
-                 user_id, start, end)
+    logger.debug("load_glucose(): user_id=%s, start=%s, end=%s", user_id, start, end)
 
-    q, p = ("SELECT timestamp, glucose_mgdl FROM user_glucose WHERE user_id=?",
-            [user_id])
+    q, p = ("SELECT timestamp, glucose_mgdl FROM user_glucose WHERE user_id=?", [user_id])
+    
+    # FIX: Use datetime() here as well
     if start is not None:
-        q += " AND timestamp >= ?"; p.append(pd.Timestamp(start).isoformat())
+        q += " AND datetime(timestamp) >= datetime(?)"
+        p.append(pd.Timestamp(start).isoformat())
     if end is not None:
-        q += " AND timestamp <= ?"; p.append(pd.Timestamp(end).isoformat())
+        q += " AND datetime(timestamp) <= datetime(?)"
+        p.append(pd.Timestamp(end).isoformat())
+        
     q += " ORDER BY timestamp"
 
     try:
         with _session() as c:
             df = pd.read_sql_query(q, c, params=p)
     except Exception:
-        logger.exception("load_glucose(): query failed for user_id=%s "
-                         "(start=%s, end=%s)", user_id, start, end)
+        logger.exception("load_glucose(): query failed for user_id=%s", user_id)
         raise
 
     if not df.empty:
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", format="mixed")
 
     if df.empty:
-        window = ""
-        if start is not None or end is not None:
-            window = f" between {start} and {end}"
-        logger.warning("load_glucose(): no readings for user_id=%s%s",
-                       user_id, window)
+        logger.warning("load_glucose(): no readings for user_id=%s between %s and %s", user_id, start, end)
     else:
-        logger.debug("load_glucose(): user_id=%s → %d reading(s)",
-                     user_id, len(df))
+        logger.debug("load_glucose(): user_id=%s → %d reading(s)", user_id, len(df))
     return df

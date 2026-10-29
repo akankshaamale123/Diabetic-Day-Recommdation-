@@ -1,24 +1,40 @@
-# app/main.py — generate chart files (each chart separate)
-import pandas as pd
-from storage import db
-from pipeline.glucose_analysis import analyze_meal_responses, summarize_patterns
-from pipeline.glucose_charts import save_all, compare_stats, default_login_date
+# app/main.py
+import logging
+import gradio as gr
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-db.init_db()
+# Import the Gradio UI we built in app.py
+from app import demo as gradio_demo
+
+# Import the FastAPI router we built in routes.py
+from models.routes import router as api_router
+
+# Set up FastAPI
+app = FastAPI(title="Diabetic Diet API & UI")
+
+# Allow frontend (React/Vue) to call the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 1. Add all API routes under /api
+app.include_router(api_router, prefix="/api")
+
+# 2. Mount the Gradio App under /gradio
+app = gr.mount_gradio_app(app, gradio_demo, path="/gradio")
 
 if __name__ == "__main__":
-    days = db.available_days()
-    if not days:
-        raise SystemExit("No data yet — run scripts/load_cgmacros.py first.")
-
-    login = default_login_date()
-    last_day = pd.Timestamp(days[-1])
-    end = last_day + pd.Timedelta(days=1)
-
-    paths = save_all(last_day, login, end)
-    for name, p in paths.items():
-        print(f"{name:28s} -> {p}")
-
-    print("\n", compare_stats(last_day, login, end).to_string())
-    print(analyze_meal_responses(login, end).head(20).to_string(index=False))
-    print(summarize_patterns(login, end))
+    import uvicorn
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+    
+    print("🚀 Starting App...")
+    print("📊 Gradio UI:    http://127.0.0.1:8000/gradio")
+    print("⚙️  API Endpoints: http://127.0.0.1:8000/api/...")
+    print("📚 API Docs:      http://127.0.0.1:8000/docs")
+    
+    uvicorn.run(app, host="127.0.0.1", port=8000)

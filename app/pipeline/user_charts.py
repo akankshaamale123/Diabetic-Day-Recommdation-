@@ -386,3 +386,129 @@ def compare_table(user: dict, day) -> pd.DataFrame:
         logger.info("compare_table(): no past-day profile available — table "
                     "will only show today's row")
     return pd.DataFrame(rows).T.reset_index(names="period")
+
+
+
+# Add to the bottom of pipeline/user_charts.py
+
+def plot_nutrition_radar(user: dict, day: str = None, is_weekly: bool = False) -> go.Figure:
+    """
+    Plots a Radar Chart showing all 8 nutrients for a single day or the whole week.
+    Normalizes values to % of Daily Target so all units (kcal, g, mg) can share one graph.
+    """
+    if is_weekly:
+        start = pd.Timestamp.now().normalize() - pd.Timedelta(days=6)
+        title = "Weekly Nutrition Profile (% of Daily Target)"
+        multiplier = 7
+    else:
+        d0 = pd.Timestamp(day).normalize() if day else pd.Timestamp.now().normalize()
+        start = d0
+        title = f"Nutrition Profile — {start.date()} (% of Daily Target)"
+        multiplier = 1
+
+    end = start + pd.Timedelta(days=1 if not is_weekly else 7) - pd.Timedelta(seconds=1)
+
+    try:
+        meals = user_db.load_meals(user["id"], start, end)
+        if meals.empty:
+            return _empty(title, "No meals logged for this period")
+
+        # 1. Define targets
+        targets = {
+            "calories_kcal": (1800 * multiplier, "Calories"),
+            "carbs_g": (150 * multiplier, "Carbs"),
+            "protein_g": (60 * multiplier, "Protein"),
+            "fat_g": (50 * multiplier, "Fat"),
+            "sugar_g": (25 * multiplier, "Sugar"),
+            "fiber_g": (30 * multiplier, "Fiber"),
+            "cholesterol_mg": (200 * multiplier, "Cholesterol"),
+            "calcium_mg": (1000 * multiplier, "Calcium"),
+        }
+
+        # 2. Only sum columns that actually exist in the database
+        available_cols = [c for c in targets.keys() if c in meals.columns]
+        totals = meals[available_cols].sum()
+
+        categories = []
+        percentages = []
+
+        for key, (target, label) in targets.items():
+            val = totals.get(key, 0) # Safely gets 0 if column is missing
+            pct = (val / target) * 100
+            
+            # Only plot categories that have data or exist
+            if key in available_cols:
+                categories.append(label)
+                percentages.append(round(pct, 1))
+
+        # Close the radar loop
+        categories.append(categories[0])
+        percentages.append(percentages[0])
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatterpolar(
+            r=percentages, theta=categories, fill='toself',
+            name='Your Intake', line_color='#1f77b4',
+            hovertemplate="%{theta}<br>%{r:.1f}% of target<extra></extra>"
+        ))
+        
+        # Add 100% reference
+        fig.add_trace(go.Scatterpolar(
+            r=[100]*len(categories), theta=categories, mode='lines',
+            name='100% Daily Target', line=dict(color='rgba(255, 0, 0, 0.4)', width=2, dash='dash')
+        ))
+
+        fig.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[0, max(max(percentages) + 20, 120)], ticksuffix="%")),
+            showlegend=True, title=title, template="plotly_white", height=500,
+            margin=dict(t=80, b=40, l=40, r=40)
+        )
+        return fig
+    except Exception as e:
+        logger.exception("plot_nutrition_radar() failed")
+        return _empty(title, f"Error: {str(e)}")
+
+
+
+def plot_user_scatter(user: dict, day: str) -> go.Figure:
+    """Scatter plot of glucose vs carbs using the user's actual data."""
+    d0 = pd.Timestamp(day).normalize()
+    end = d0 + pd.Timedelta(days=1)
+    title = f"Glucose vs Carbs — {d0.date()}"
+
+    try:
+        meals = user_db.load_meals(user["id"], d0, end)
+        glucose = user_db.load_glucose(user["id"], d0, end)
+
+        if meals.empty or glucose.empty:
+            return _empty(title, "Not enough data for scatter plot")
+
+        # Merge meals and glucose to find pairs
+        merged = pd.merge_asof(
+            meals.sort_values("timestamp"),
+            glucose.sort_values("timestamp"),
+            on="timestamp", direction="backward", tolerance=pd.Timedelta(minutes=120)
+        ).dropna(subset=["glucose_mgdl", "carbs_g"])
+
+        if merged.empty:
+            return _empty(title, "No meals matched with glucose readings")
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=merged['carbs_g'], y=merged['glucose_mgdl'],
+            mode='markers',
+            marker=dict(color='blue', size=10, opacity=0.7),
+            text=[f"{r.meal_type}" for r in merged.itertuples()],
+            hovertemplate="<b>%{text}</b><br>Carbs: %{x:.0f} g<br>Glucose: %{y:.0f} mg/dL<extra></extra>"
+        ))
+
+        fig.update_layout(
+            title=title, xaxis_title="Carbs (g)", yaxis_title="Glucose (mg/dL)",
+            template="plotly_white", height=400
+        )
+        return fig
+    except Exception as e:
+        logger.exception("plot_user_scatter() failed")
+        return _empty(title, f"Error: {str(e)}")
+    
+    

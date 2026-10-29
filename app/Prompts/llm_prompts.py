@@ -123,3 +123,15 @@ Rules:
 
 Food: {food}
 """
+
+
+_AUDIT_PROMPT = """\
+Here is a list of food items already detected on the plate in the image:
+
+{found}
+
+Look at the image again very carefully.
+Are there any visible food items that are NOT in the list above?
+Return ONLY the missing items, in the same JSON schema as the first detection.
+If nothing is missing, return an empty food_items array.
+"""

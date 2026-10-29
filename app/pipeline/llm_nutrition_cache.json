@@ -138,5 +138,243 @@
     },
     "confidence": 0.8,
     "notes": "Typical Indian-style chili con carne; values approximate based on common ingredients."
+  },
+  "dal, yellow": {
+    "per_100g": {
+      "sugar_g": 3.0,
+      "cholesterol_mg": 0,
+      "calcium_mg": 100,
+      "calories_kcal": 340,
+      "fat_g": 4.0,
+      "protein_g": 14.0,
+      "carbs_g": 57.0,
+      "fiber_g": 10.0
+    },
+    "confidence": 0.95,
+    "notes": "Based on typical Indian cooking; values may vary with added oil or spices."
+  },
+  "raita, yogurt-based": {
+    "per_100g": {
+      "sugar_g": 1.5,
+      "cholesterol_mg": 15,
+      "calcium_mg": 120,
+      "calories_kcal": 100,
+      "fat_g": 3.5,
+      "protein_g": 3.5,
+      "carbs_g": 3.5,
+      "fiber_g": 0.1
+    },
+    "confidence": 0.95,
+    "notes": "Typical Indian raita with yogurt, cucumber, and spices; values approximate."
+  },
+  "kadhi, yogurt-based": {
+    "per_100g": {
+      "sugar_g": 3.0,
+      "cholesterol_mg": 20,
+      "calcium_mg": 120,
+      "calories_kcal": 120,
+      "fat_g": 6.0,
+      "protein_g": 5.0,
+      "carbs_g": 5.0,
+      "fiber_g": 0.5
+    },
+    "confidence": 0.85,
+    "notes": "Typical Indian kadhi with yogurt, spices, and gram flour; values approximate."
+  },
+  "lassi, yogurt-based": {
+    "per_100g": {
+      "sugar_g": 8.0,
+      "cholesterol_mg": 15,
+      "calcium_mg": 120,
+      "calories_kcal": 140,
+      "fat_g": 4.5,
+      "protein_g": 3.5,
+      "carbs_g": 10.0,
+      "fiber_g": 0.1
+    },
+    "confidence": 0.95,
+    "notes": "Typical Indian lassi; values vary by sweetness and yogurt type."
+  },
+  "dal, yellow lentils, cooked": {
+    "per_100g": {
+      "fat_g": 0.7,
+      "sugar_g": 1.4,
+      "calcium_mg": 47,
+      "cholesterol_mg": 0,
+      "fiber_g": 3.2,
+      "calories_kcal": 127,
+      "protein_g": 8.9,
+      "carbs_g": 21.3
+    },
+    "confidence": 0.95,
+    "notes": "Based on USDA data; typical Indian cooking adds minimal fat."
+  },
+  "chana masala, cooked": {
+    "per_100g": {
+      "fat_g": 3.2,
+      "sugar_g": 2.3,
+      "calcium_mg": 45,
+      "cholesterol_mg": 0,
+      "fiber_g": 3.2,
+      "calories_kcal": 138,
+      "protein_g": 6.8,
+      "carbs_g": 17.2
+    },
+    "confidence": 0.95,
+    "notes": "Typical Indian recipe; values based on common ingredients and cooking methods."
+  },
+  "aloo gobi": {
+    "per_100g": {
+      "fat_g": 3.5,
+      "calcium_mg": 25,
+      "protein_g": 2.5,
+      "carbs_g": 18.5,
+      "calories_kcal": 110,
+      "cholesterol_mg": 0,
+      "sugar_g": 3.5,
+      "fiber_g": 2.5
+    },
+    "confidence": 0.9,
+    "notes": "Typical Indian preparation with potatoes, cauliflower, oil, and spices."
+  },
+  "raita (yogurt dip)": {
+    "per_100g": {
+      "fiber_g": 0.1,
+      "carbs_g": 3.5,
+      "protein_g": 3.5,
+      "sugar_g": 1.5,
+      "cholesterol_mg": 15,
+      "calcium_mg": 120,
+      "fat_g": 3.5,
+      "calories_kcal": 100
+    },
+    "confidence": 0.9,
+    "notes": "Typical Indian raita with cucumber and herbs; values vary by ingredients."
+  },
+  "kebab (meat)": {
+    "per_100g": {
+      "fiber_g": 0,
+      "carbs_g": 2,
+      "protein_g": 25,
+      "sugar_g": 1,
+      "cholesterol_mg": 80,
+      "calcium_mg": 10,
+      "fat_g": 15,
+      "calories_kcal": 250
+    },
+    "confidence": 0.8,
+    "notes": "Estimate based on typical meat kebab; varies by meat and marinade."
+  },
+  "chutney (red)": {
+    "per_100g": {
+      "fiber_g": 2,
+      "carbs_g": 25,
+      "protein_g": 2,
+      "sugar_g": 18,
+      "cholesterol_mg": 0,
+      "calcium_mg": 40,
+      "fat_g": 1,
+      "calories_kcal": 120
+    },
+    "confidence": 0.8,
+    "notes": "Typical Indian red chutney (tamarind, chili, onion, garlic). Values approximate."
+  },
+  "lassi (yogurt drink)": {
+    "per_100g": {
+      "fiber_g": 0.1,
+      "carbs_g": 10.0,
+      "protein_g": 3.5,
+      "sugar_g": 8.0,
+      "cholesterol_mg": 15,
+      "calcium_mg": 120,
+      "fat_g": 3.0,
+      "calories_kcal": 120
+    },
+    "confidence": 0.95,
+    "notes": "Typical Indian preparation; values vary by sugar and fat content."
+  },
+  "dosai (or dosai)": {
+    "per_100g": {
+      "fat_g": 1,
+      "protein_g": 3,
+      "sugar_g": 1,
+      "fiber_g": 2,
+      "calcium_mg": 20,
+      "carbs_g": 25,
+      "cholesterol_mg": 0,
+      "calories_kcal": 130
+    },
+    "confidence": 0.9,
+    "notes": "Typical Indian preparation; values based on rice and lentil batter."
+  },
+  "chutney (yellow)": {
+    "per_100g": {
+      "fat_g": 2.0,
+      "protein_g": 1.5,
+      "sugar_g": 18.0,
+      "fiber_g": 1.5,
+      "calcium_mg": 25,
+      "carbs_g": 22.0,
+      "cholesterol_mg": 0,
+      "calories_kcal": 120
+    },
+    "confidence": 0.8,
+    "notes": "Typical Indian yellow chutney (tamarind/mustard base), values approximate."
+  },
+  "chives, chopped": {
+    "per_100g": {
+      "protein_g": 1.4,
+      "sugar_g": 2.5,
+      "calcium_mg": 45,
+      "carbs_g": 4.5,
+      "fiber_g": 1.2,
+      "cholesterol_mg": 0,
+      "fat_g": 0.2,
+      "calories_kcal": 30
+    },
+    "confidence": 0.95,
+    "notes": "Typical nutritional profile; chopped form negligible impact."
+  },
+  "cheese, melted": {
+    "per_100g": {
+      "protein_g": 25.0,
+      "sugar_g": 0.1,
+      "calcium_mg": 750,
+      "carbs_g": 0.1,
+      "fiber_g": 0.0,
+      "cholesterol_mg": 100,
+      "fat_g": 25.0,
+      "calories_kcal": 330
+    },
+    "confidence": 0.95,
+    "notes": "Based on typical cheese composition; melted form may vary slightly."
+  },
+  "meatballs": {
+    "per_100g": {
+      "protein_g": 18,
+      "sugar_g": 1,
+      "calcium_mg": 15,
+      "carbs_g": 3,
+      "fiber_g": 0,
+      "cholesterol_mg": 75,
+      "fat_g": 15,
+      "calories_kcal": 250
+    },
+    "confidence": 0.8,
+    "notes": "Estimate based on typical beef meatballs; varies by recipe and fat content."
+  },
+  "ketchup": {
+    "per_100g": {
+      "sugar_g": 18.0,
+      "protein_g": 0.3,
+      "calories_kcal": 100,
+      "carbs_g": 22.0,
+      "fat_g": 0.1,
+      "fiber_g": 0.1,
+      "calcium_mg": 10,
+      "cholesterol_mg": 0
+    },
+    "confidence": 0.95,
+    "notes": "Typical tomato-based ketchup; values may vary by brand."
   }
 }

@@ -139,12 +139,6 @@ def seed_user_db(user_id: int = 1,
                  login_days_ago: int = 20) -> None:
     """
     Seed storage.user_db tables (users, user_meals, user_glucose).
-
-    Matches the schema in user_db.init_user_tables():
-      users         : id, username, created_at, diabetes_type, baseline_mgdl
-      user_meals    : id, user_id, timestamp, meal_type, foods_json,
-                      calories_kcal, carbs_g, sugar_g, fiber_g, protein_g, fat_g
-      user_glucose  : id, user_id, timestamp, glucose_mgdl
     """
     now   = datetime.now()
     today = now.date()
@@ -180,11 +174,13 @@ def seed_user_db(user_id: int = 1,
             is_today = (day == today)
 
             def add_meal(hour: int, meal_type: str, tpl: tuple) -> None:
-                # skip future meals on today
                 if is_today and now.hour < hour:
                     return
+                
+                # Unpack everything including cholesterol (_chol) and calcium (_calc)
                 (name, portion, kcal, carbs, sugar, prot,
                  fat, fib, _chol, _calc, src, conf) = tpl
+                 
                 meal_rows.append({
                     "user_id":       user_id,
                     "timestamp":     f"{ds} {hour:02d}:00:00",
@@ -201,6 +197,8 @@ def seed_user_db(user_id: int = 1,
                     "fiber_g":       float(fib),
                     "protein_g":     float(prot),
                     "fat_g":         float(fat),
+                    "cholesterol_mg": float(_chol),  # <--- FIXED HERE
+                    "calcium_mg":     float(_calc),  # <--- FIXED HERE
                 })
 
             add_meal( 8, "breakfast", BREAKFAST_TPL[d % len(BREAKFAST_TPL)])
@@ -208,7 +206,7 @@ def seed_user_db(user_id: int = 1,
             add_meal(17, "snack",     SNACK_TPL    [d % len(SNACK_TPL)])
             add_meal(20, "dinner",    DINNER_TPL   [d % len(DINNER_TPL)])
 
-            # glucose readings, each within 30 min of a meal
+            # glucose readings
             pre_b  = 105 + (d * 3) % 20
             post_b = 155 + (d * 7) % 45
             pre_l  = 110 + (d * 5) % 20
@@ -250,7 +248,6 @@ def seed_user_db(user_id: int = 1,
 
         print(f"seed_user_db(): user_id={user_id} → "
               f"{len(meal_rows)} meals, {len(gluc_rows)} glucose rows")
-
 
 if __name__ == "__main__":
     seed_sample_data(days=20, force=True)                # storage.db   (scatter)
